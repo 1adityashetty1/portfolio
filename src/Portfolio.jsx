@@ -304,6 +304,130 @@ function Nav() {
   );
 }
 
+/* ─── Pixel Art ─────────────────────────────────── */
+
+const PX = 5; // pixel block size
+
+// Color keys: 0=empty, 1=accent, 2=body, 3=dark, 4=red, 5=yellow, 6=blue, 7=stem, 8=leaf, 9=petal, A=soil
+const UFO_GRID = [
+  [0,0,0,0,1,1,1,1,0,0,0,0],
+  [0,0,0,1,1,1,1,1,1,0,0,0],
+  [0,0,1,1,3,1,1,3,1,1,0,0],
+  [0,2,2,2,2,2,2,2,2,2,2,0],
+  [2,2,2,2,2,2,2,2,2,2,2,2],
+  [0,4,0,6,0,5,0,4,0,6,0,5],
+];
+
+const FLOWER_GRID = [
+  [0,0,0,0,9,9,0,0,0,0],
+  [0,0,0,9,9,9,9,0,0,0],
+  [0,0,9,9,5,5,9,9,0,0],
+  [0,0,0,9,9,9,9,0,0,0],
+  [0,0,0,0,9,9,0,0,0,0],
+  [0,0,0,0,7,7,0,0,0,0],
+  [0,0,0,0,7,7,0,0,0,0],
+  [0,0,8,8,7,7,0,0,0,0],
+  [0,0,0,0,7,7,0,0,0,0],
+  [0,0,0,0,7,7,8,8,0,0],
+  [0,0,0,0,7,7,0,0,0,0],
+  [0,0,0,0,7,7,0,0,0,0],
+  ["A","A","A","A","A","A","A","A","A","A"],
+];
+
+function PixelArt() {
+  const t = useTheme();
+  const isDark = t.bg === THEMES.dark.bg;
+
+  const colorMap = isDark
+    ? { 1: t.accent, 2: "#9CA3AF", 3: "#1a1a2e", 4: "#FF6B6B", 5: "#FBBF24", 6: "#60A5FA" }
+    : { 5: "#FBBF24", 7: "#22C55E", 8: "#16A34A", 9: "#F472B6", A: "#92400E" };
+
+  const grid = isDark ? UFO_GRID : FLOWER_GRID;
+  const cols = Math.max(...grid.map((r) => r.length));
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        right: "clamp(24px, 8vw, 120px)",
+        bottom: isDark ? 120 : 60,
+        animation: isDark ? "ufo-float 4s ease-in-out infinite" : "flower-sway 6s ease-in-out infinite",
+        transformOrigin: isDark ? "center" : "bottom center",
+        opacity: 0.85,
+        pointerEvents: "none",
+      }}
+    >
+      {/* stars around UFO */}
+      {isDark &&
+        [
+          { x: -20, y: -10, d: 0 },
+          { x: 70, y: -25, d: 0.8 },
+          { x: -15, y: 40, d: 1.6 },
+          { x: 80, y: 20, d: 0.4 },
+          { x: 30, y: -30, d: 1.2 },
+        ].map((s, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: s.x,
+              top: s.y,
+              width: PX,
+              height: PX,
+              background: "#fff",
+              animation: `star-twinkle 2s ${s.d}s ease-in-out infinite`,
+            }}
+          />
+        ))}
+
+      {/* pixel grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, ${PX}px)`,
+          gap: 0,
+          animation: !isDark ? "flower-grow 1.5s ease-out forwards" : undefined,
+          transformOrigin: "bottom",
+        }}
+      >
+        {grid.flat().map((cell, i) => {
+          const color = colorMap[cell];
+          const isLight = isDark && [4, 5, 6].includes(cell);
+          return (
+            <div
+              key={i}
+              style={{
+                width: PX,
+                height: PX,
+                background: color || "transparent",
+                animation: isLight
+                  ? `ufo-lights 1.5s ${(i % 4) * 0.2}s ease-in-out infinite`
+                  : !isDark && cell === 9
+                  ? `flower-bloom 0.8s ${0.8 + (i % 5) * 0.1}s ease-out both`
+                  : undefined,
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* UFO beam */}
+      {isDark && (
+        <div
+          style={{
+            width: cols * PX * 0.5,
+            height: 50,
+            margin: "0 auto",
+            background: `linear-gradient(to bottom, ${t.accent}44, transparent)`,
+            clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)",
+            animation: "ufo-beam 2s ease-in-out infinite",
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 /* ─── Hero ──────────────────────────────────────── */
 
 function Hero() {
@@ -389,6 +513,8 @@ function Hero() {
         <ContactPill icon="in" text="LinkedIn" href="https://linkedin.com/in/aditya-shetty" />
         <ContactPill icon="☎" text={phone} />
       </div>
+
+      <PixelArt />
 
       <div
         style={{
@@ -871,6 +997,36 @@ export default function Portfolio() {
             @keyframes pulse {
               0%, 100% { opacity: 1; }
               50% { opacity: 0.3; }
+            }
+            @keyframes ufo-float {
+              0%, 100% { transform: translateY(0) rotate(-2deg); }
+              50% { transform: translateY(-12px) rotate(2deg); }
+            }
+            @keyframes ufo-beam {
+              0%, 100% { opacity: 0.15; }
+              50% { opacity: 0.4; }
+            }
+            @keyframes ufo-lights {
+              0%, 100% { opacity: 1; }
+              33% { opacity: 0.3; }
+              66% { opacity: 0.7; }
+            }
+            @keyframes flower-grow {
+              0% { transform: scaleY(0); transform-origin: bottom; }
+              100% { transform: scaleY(1); transform-origin: bottom; }
+            }
+            @keyframes flower-bloom {
+              0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+              60% { transform: scale(1.1) rotate(5deg); opacity: 1; }
+              100% { transform: scale(1) rotate(0deg); opacity: 1; }
+            }
+            @keyframes flower-sway {
+              0%, 100% { transform: rotate(-2deg); }
+              50% { transform: rotate(2deg); }
+            }
+            @keyframes star-twinkle {
+              0%, 100% { opacity: 0.2; }
+              50% { opacity: 1; }
             }
             ::-webkit-scrollbar { width: 6px; }
             ::-webkit-scrollbar-track { background: ${theme.bg}; }
