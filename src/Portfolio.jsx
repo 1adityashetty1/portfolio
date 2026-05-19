@@ -527,6 +527,317 @@ function PixelArt() {
   );
 }
 
+/* ─── Scroll Companion ──────────────────────────── */
+
+function useScrollProgress() {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const h = document.documentElement.scrollHeight - window.innerHeight;
+          setProgress(h > 0 ? Math.min(window.scrollY / h, 1) : 0);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return progress;
+}
+
+/* Tiny pixel grid renderer used by the scroll companion */
+function MiniPixelGrid({ grid, colorMap, px }) {
+  const cols = Math.max(...grid.map((r) => r.length));
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, ${px}px)`, gap: 0 }}>
+      {grid.flat().map((cell, i) => (
+        <div
+          key={i}
+          style={{
+            width: px,
+            height: px,
+            background: colorMap[cell] || "transparent",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ScrollCompanion() {
+  const t = useTheme();
+  const mobile = useIsMobile();
+  const progress = useScrollProgress();
+  const isDark = t.bg === THEMES.dark.bg;
+
+  if (mobile) return null;
+
+  const trackHeight = 70; // vh units for the travel range
+  const ufoY = progress * trackHeight;
+
+  const ufoColors = { 1: t.accent, 2: "#9CA3AF", 3: "#1a1a2e", 4: "#FF6B6B", 5: "#FBBF24", 6: "#60A5FA" };
+  const flowerHeadColors = { 5: "#FBBF24", 9: "#F472B6" };
+
+  const MINI_UFO = [
+    [0,0,1,1,1,1,0,0],
+    [0,1,1,3,3,1,1,0],
+    [2,2,2,2,2,2,2,2],
+    [0,4,6,5,4,6,5,0],
+  ];
+
+  const MINI_FLOWER_HEAD = [
+    [0,0,9,9,0,0],
+    [0,9,5,5,9,0],
+    [9,9,5,5,9,9],
+    [0,9,9,9,9,0],
+    [0,0,9,9,0,0],
+  ];
+
+  /* Root path segments - each is an SVG path that "draws" in based on scroll progress */
+  const rootSegments = [
+    // main taproot
+    { d: "M 20 0 L 20 200", len: 200, start: 0, end: 0.6 },
+    // left branch 1
+    { d: "M 20 40 Q 10 55 4 75", len: 45, start: 0.1, end: 0.35 },
+    // right branch 1
+    { d: "M 20 60 Q 30 75 38 90", len: 40, start: 0.15, end: 0.4 },
+    // left branch 2
+    { d: "M 20 100 Q 8 115 2 140", len: 50, start: 0.25, end: 0.5 },
+    // right branch 2
+    { d: "M 20 130 Q 32 145 40 165", len: 45, start: 0.3, end: 0.55 },
+    // left tendril deep
+    { d: "M 20 160 Q 5 180 0 210", len: 55, start: 0.4, end: 0.7 },
+    // right tendril deep
+    { d: "M 20 175 Q 35 195 42 220", len: 55, start: 0.45, end: 0.75 },
+    // left tiny
+    { d: "M 4 75 Q 0 85 2 95", len: 22, start: 0.35, end: 0.55 },
+    // right tiny
+    { d: "M 38 90 Q 42 100 40 112", len: 24, start: 0.4, end: 0.6 },
+    // deep center continuation
+    { d: "M 20 200 Q 18 230 20 260", len: 60, start: 0.6, end: 0.85 },
+    // deep left
+    { d: "M 20 230 Q 6 250 0 275", len: 55, start: 0.65, end: 0.9 },
+    // deep right
+    { d: "M 20 240 Q 36 260 44 280", len: 55, start: 0.7, end: 0.95 },
+    // final deep tap
+    { d: "M 20 260 Q 22 280 20 310", len: 50, start: 0.8, end: 1.0 },
+  ];
+
+  if (isDark) {
+    /* ─── UFO drifting down ─── */
+    // Stars that appear in the wake
+    const numStars = 12;
+    const stars = Array.from({ length: numStars }, (_, i) => ({
+      y: (i / numStars) * trackHeight,
+      x: 10 + Math.sin(i * 2.3) * 16,
+      delay: i * 0.15,
+      size: (i % 3 === 0) ? 3 : 2,
+    }));
+
+    return (
+      <div
+        style={{
+          position: "fixed",
+          right: 36,
+          top: "10vh",
+          width: 60,
+          height: `${trackHeight}vh`,
+          zIndex: 10,
+          pointerEvents: "none",
+        }}
+      >
+        {/* Beam trail line */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 0,
+            width: 2,
+            height: `${ufoY}vh`,
+            background: `linear-gradient(to bottom, transparent, ${t.accent}22, ${t.accent}44)`,
+            transform: "translateX(-50%)",
+            transition: "height 0.1s linear",
+          }}
+        />
+
+        {/* Wake stars */}
+        {stars.map((s, i) => {
+          const visible = (s.y / trackHeight) < progress;
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: s.x,
+                top: `${s.y}vh`,
+                width: s.size,
+                height: s.size,
+                borderRadius: "50%",
+                background: t.accent,
+                opacity: visible ? 0.6 : 0,
+                transition: "opacity 0.5s ease",
+                animation: visible ? `star-twinkle 2s ${s.delay}s ease-in-out infinite` : "none",
+              }}
+            />
+          );
+        })}
+
+        {/* Scanning dots below UFO */}
+        {[0, 1, 2].map((i) => (
+          <div
+            key={`scan-${i}`}
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: `calc(${ufoY}vh + ${28 + i * 10}px)`,
+              width: 3,
+              height: 3,
+              borderRadius: "50%",
+              background: t.accent,
+              opacity: 0.3 + (i * 0.1),
+              transform: "translateX(-50%)",
+              animation: `ufo-beam 1.5s ${i * 0.3}s ease-in-out infinite`,
+            }}
+          />
+        ))}
+
+        {/* UFO */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: `${ufoY}vh`,
+            transform: `translateX(-50%) rotate(${Math.sin(progress * Math.PI * 4) * 3}deg)`,
+            transition: "top 0.1s linear",
+          }}
+        >
+          <MiniPixelGrid grid={MINI_UFO} colorMap={ufoColors} px={4} />
+          {/* Mini beam under UFO */}
+          <div
+            style={{
+              width: 16,
+              height: 12,
+              margin: "0 auto",
+              background: `linear-gradient(to bottom, ${t.accent}33, transparent)`,
+              clipPath: "polygon(25% 0%, 75% 0%, 100% 100%, 0% 100%)",
+              animation: "ufo-beam 2s ease-in-out infinite",
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Flower with growing roots ─── */
+  return (
+    <div
+      style={{
+        position: "fixed",
+        right: 32,
+        top: "12vh",
+        width: 60,
+        zIndex: 10,
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      {/* Flower head */}
+      <div style={{ animation: "flower-sway 5s ease-in-out infinite" }}>
+        <MiniPixelGrid grid={MINI_FLOWER_HEAD} colorMap={flowerHeadColors} px={4} />
+      </div>
+
+      {/* Stem + roots SVG */}
+      <svg
+        width="44"
+        height="320"
+        viewBox="0 0 44 320"
+        style={{ overflow: "visible", marginTop: -1 }}
+      >
+        {/* Stem */}
+        <line
+          x1="20" y1="0" x2="20" y2="16"
+          stroke="#22C55E"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+
+        {/* Soil line */}
+        <line
+          x1="0" y1="16" x2="44" y2="16"
+          stroke="#92400E"
+          strokeWidth="3"
+          strokeLinecap="round"
+          opacity="0.6"
+        />
+
+        {/* Soil dots */}
+        {[4, 12, 24, 32, 40].map((x, i) => (
+          <circle
+            key={i}
+            cx={x}
+            cy={18 + (i % 2) * 3}
+            r="1.5"
+            fill="#92400E"
+            opacity="0.4"
+          />
+        ))}
+
+        {/* Root segments that draw in based on scroll */}
+        <g transform="translate(2, 20)">
+          {rootSegments.map((seg, i) => {
+            const segProgress = Math.max(0, Math.min(1, (progress - seg.start) / (seg.end - seg.start)));
+            const dashOffset = seg.len * (1 - segProgress);
+            return (
+              <path
+                key={i}
+                d={seg.d}
+                fill="none"
+                stroke="#92400E"
+                strokeWidth={i < 2 ? 2.5 : i < 6 ? 1.8 : 1.2}
+                strokeLinecap="round"
+                strokeDasharray={seg.len}
+                strokeDashoffset={dashOffset}
+                opacity={segProgress > 0 ? 0.4 + segProgress * 0.4 : 0}
+                style={{ transition: "stroke-dashoffset 0.15s linear, opacity 0.3s ease" }}
+              />
+            );
+          })}
+
+          {/* Root tip nodes that appear as roots reach them */}
+          {[
+            { x: 2, y: 95, at: 0.55 },
+            { x: 40, y: 112, at: 0.6 },
+            { x: 0, y: 210, at: 0.7 },
+            { x: 42, y: 220, at: 0.75 },
+            { x: 0, y: 275, at: 0.9 },
+            { x: 44, y: 280, at: 0.95 },
+            { x: 20, y: 310, at: 1.0 },
+          ].map((tip, i) => {
+            const visible = progress >= tip.at;
+            return (
+              <circle
+                key={i}
+                cx={tip.x}
+                cy={tip.y}
+                r={visible ? 2.5 : 0}
+                fill="#92400E"
+                opacity={visible ? 0.6 : 0}
+                style={{ transition: "r 0.4s ease, opacity 0.4s ease" }}
+              />
+            );
+          })}
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 /* ─── Hero ──────────────────────────────────────── */
 
 function Hero() {
@@ -1165,6 +1476,7 @@ export default function Portfolio() {
             `}</style>
 
             <Nav />
+            <ScrollCompanion />
             <Hero />
 
             <main
